@@ -505,3 +505,38 @@ v0.7.0's workflow only ran on a pushed version tag. Tag creation (git push and A
 Delete the `v0.7.1` Release and tag, and revert the workflow to `versions/v0.7.0/.github/workflows/build-live-image.yml`.
 
 **Status:** Released (image published by the GitHub workflow)
+
+---
+
+### CR-009 · repository administration (no product change) · 2026-10-03
+
+| Field | Detail |
+|---|---|
+| Change ID | CR-009 |
+| Version | none. No product file changed; the current version stays 0.7.1 |
+| Date | 2026-10-03 |
+| Author | Dan Lee |
+| Requested by | Dan Lee ("yes remove the email"; the repository is public) |
+| Approved by | Dan Lee (chose "Rewrite history + force-push") |
+| Type | Privacy / repository history |
+| Branches | `main` and `release/v0.1.0` … `release/v0.7.1` force-pushed |
+
+**Description**
+The author and committer email in all 8 commits was changed from the owner's personal address to the GitHub private noreply address (`<id>+yiddifliddo@users.noreply.github.com`). The name stays "Dan Lee". All future commits use the noreply address.
+
+**Reason for change**
+The repository is public, and commit metadata exposed the owner's personal email address.
+
+**Impact**
+- Commit IDs changed (old → new): v0.1.0 83c6660 → 9d0d0a3, v0.2.0 3825f40 → 742e1bf, v0.3.0 5886ea0 → fd9ad8b, v0.4.0 6fcce9a → 8193a3a, v0.5.0 b5a000d → 6b098a4, v0.6.0 26e791d → facbd9d, v0.7.0 36ecfca → 6d1c8fa, v0.7.1 809a0d7 → 15c92c4.
+- **File contents are unchanged:** each branch's tree ID is identical before and after.
+- The GitHub Release/tag `v0.7.1` pointed to the old commit. It is deleted by the owner on GitHub and republished by the workflow from the rewritten `release/v0.7.1`; the image contents are the same.
+
+**Verification**
+- Tree IDs before and after identical for all 9 refs.
+- 0 occurrences of the personal email in the rewritten history; 0 in any file.
+
+**Rollback plan**
+A full backup bundle of the history from before the rewrite was taken (`git bundle`, all refs) and kept outside the repository.
+
+**Status:** Done (Release v0.7.1 to be republished after the owner deletes the old one)
