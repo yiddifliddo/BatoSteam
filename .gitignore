@@ -1,0 +1,6 @@
+# Build outputs - never commit images
+dist/
+vm-test/
+*.img
+*.img.xz
+*.qcow2

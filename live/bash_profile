@@ -1,0 +1,5 @@
+# BatoSteam Live: start the installer on the first screen
+if [[ $(tty) = /dev/tty1 && -z ${BATOSTEAM_STARTED:-} ]]; then
+  export BATOSTEAM_STARTED=1
+  exec /usr/local/bin/batosteam-live
+fi

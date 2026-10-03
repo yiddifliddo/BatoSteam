@@ -1,0 +1,92 @@
+# BatoSteam - build the "BatoSteam Live" USB image and publish it on the Releases page
+# Author: Dan Lee
+# Version: 0.7.0
+#
+# Runs when a version tag (v1.2.3) is pushed, or by hand from the Actions tab.
+# The build runs inside a Debian 13 container (tools/build-live-image.sh).
+
+name: Build BatoSteam Live image
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # full history, for the name check
+
+      - name: Check VERSION matches the tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          test "v$(cat VERSION)" = "${GITHUB_REF_NAME}" || { echo "VERSION file says $(cat VERSION) but tag is ${GITHUB_REF_NAME}"; exit 1; }
+
+      - name: Check for names that must not appear in the project
+        run: |
+          # The forbidden word is stored base64-encoded so it does not appear in this file either
+          WORD="$(echo 'Y2xhdWRlCg==' | base64 -d)"
+          if grep -rIil "$WORD" --exclude-dir=.git . || find . -path ./.git -prune -o -iname "*$WORD*" -print | grep -q .; then
+            echo "Forbidden name found in the project - not building."; exit 1
+          fi
+          if git log --all --format='%an %ae %cn %ce %s %b' | grep -iq "$WORD"; then
+            echo "Forbidden name found in the git history - not building."; exit 1
+          fi
+          echo "OK - name check passed"
+
+      - name: Build image (Debian 13 container)
+        run: |
+          docker run --rm --privileged -v "$PWD":/src -w /src debian:trixie bash -c '
+            set -e
+            apt-get update -qq
+            apt-get install -y -qq --no-install-recommends debootstrap squashfs-tools dosfstools mtools fdisk \
+              grub-efi-amd64-bin curl ca-certificates xz-utils debian-archive-keyring
+            ./tools/build-live-image.sh --out /src/dist --compress
+          '
+          sudo chown -R "$(id -u)":"$(id -g)" dist
+          ls -lh dist
+
+      - name: Check the built image too
+        run: |
+          WORD="$(echo 'Y2xhdWRlCg==' | base64 -d)"
+          if xz -dc dist/*.img.xz | LC_ALL=C grep -aiq "$WORD"; then echo "Forbidden name found inside the image - not publishing."; exit 1; fi
+          echo "OK - image name check passed"
+
+      - name: Keep as build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: batosteam-live
+          path: |
+            dist/*.img.xz
+            dist/*.img.xz.sha256
+          retention-days: 30
+
+      - name: Publish to the GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V="$(cat VERSION)"
+          cat > notes.md <<NOTES
+          **BatoSteam Live ${V}** - boot this USB image and install Batocera + SteamOS from on-screen menus. No commands needed.
+
+          1. Download **batosteam-live-${V}.img.xz**.
+          2. Write it to a USB drive (8 GB or larger) with **Rufus** (Windows) or **Balena Etcher** (Windows/macOS/Linux). Both accept the .xz file directly.
+          3. Turn **Secure Boot OFF**, boot the PC from the USB drive (UEFI). BatoSteam starts by itself.
+
+          SteamOS is downloaded from Valve during the install, so an internet connection (Ethernet or Wi-Fi) is needed.
+          Check the download: compare its SHA-256 with batosteam-live-${V}.img.xz.sha256.
+          NOTES
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/*.img.xz dist/*.img.xz.sha256 --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/*.img.xz dist/*.img.xz.sha256 \
+              --title "BatoSteam ${V}" --notes-file notes.md
+          fi

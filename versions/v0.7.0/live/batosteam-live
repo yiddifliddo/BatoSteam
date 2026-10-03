@@ -1,0 +1,43 @@
+#!/bin/bash
+# BatoSteam Live - starts the installer automatically after boot (no commands needed)
+# Author: Dan Lee
+# Version: 0.7.0
+
+export TERM=linux
+BATOSTEAM_DIR=/opt/batosteam
+
+# Large, readable console font - but keep at least 80 columns for the menus
+pick_font() {
+  local f
+  for f in Lat15-TerminusBold32x16 Lat15-TerminusBold28x14 Lat15-TerminusBold24x12; do
+    setfont "$f" 2>/dev/null || continue
+    [[ $(tput cols) -ge 90 ]] && return 0
+  done
+  setfont 2>/dev/null   # default font
+}
+
+splash() {
+  clear
+  whiptail --title "BatoSteam Live $(cat $BATOSTEAM_DIR/VERSION)" --infobox \
+"Starting BatoSteam...\n\nLooking for a network connection (Ethernet connects by itself).\nNothing is written to this PC until you choose to install." 10 70
+}
+
+pick_font
+splash
+# Give Ethernet / remembered Wi-Fi up to 15 s to come up (the installer can also connect Wi-Fi)
+nm-online -q -t 15 2>/dev/null
+
+while true; do
+  "$BATOSTEAM_DIR/batosteam-installer.sh"
+  choice="$(whiptail --title "BatoSteam Live" --nocancel --menu \
+"What next?\n\nIf you installed: choose 'Restart PC' and REMOVE the USB drive when the screen goes black." 16 70 4 \
+    restart  "Restart PC" \
+    poweroff "Turn PC off" \
+    again    "Back to the BatoSteam installer" \
+    shell    "Command line (advanced users only)" 3>&1 1>&2 2>&3)"
+  case "$choice" in
+    restart)  systemctl reboot ;;
+    poweroff) systemctl poweroff ;;
+    shell)    clear; echo "Type 'exit' to return to BatoSteam."; bash -l --norc; ;;
+  esac
+done
